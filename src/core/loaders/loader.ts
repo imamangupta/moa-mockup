@@ -1,63 +1,78 @@
-import { ILoader } from "../Interface";
-import { BaseLoader } from "./base.loder";
-import { DirectioryLoader } from "./directory.loder";
+import { ILoader, IModule } from "../Interface";
+import { BaseLoader } from "./base.loader";
+import { DirectoryLoader } from "./directory.loader";
 
 export type Class<T = object, A extends unknown[] = unknown[]> = new (...args: A) => T;
 
 export class ModuleLoader {
+    private readonly loaders: Record<string, BaseLoader> = {};
     
-    loaded : ILoader ; 
 
-    constructor(){
-        this.loaded = {};
-    }
-
-    async init(){
+    init() {
         try {
-            await this.loadModules(DirectioryLoader);
+            this.loadModules(DirectoryLoader);
         } catch (error) {
-            throw new Error('Failed to load Modules : ' + error);
+            throw new Error(`Failed to initialize ModuleLoader: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
-
-    private async loadModules<T extends DirectioryLoader>(constructor : Class<T  ,ConstructorParameters<typeof DirectioryLoader>> ){
+    private loadModules<T extends DirectoryLoader>(Constructor: Class<T, ConstructorParameters<typeof DirectoryLoader>>) {
         try {
-           const loder = new constructor();
-           this.loaded[loder.packageName] = loder;
-            return loder;
+            const loader = new Constructor();
+            this.loaders[loader.packageName] = loader;
+            return loader;
         } catch (error) {
-            throw new Error('Failed to load Modules : ' + error);
+            throw new Error(`Failed to load modules: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
-    private resolveLoaderForModule(packagename:string){
+    private resolveLoaderForModule(packageName: string) {
         try {
-            const loader = this.loaded[packagename];
+            const loader = this.loaders[packageName];
+
             if (!loader) {
-                throw new Error(`Loader not found for package: ${packagename}`);
+                throw new Error(`Loader not found for package: ${packageName}`);
             }
-            if(!loader.known.length || !loader.known.length){
-                throw new Error(`No modules found for package: ${packagename}`);
+            if (!loader.known.length) {
+                throw new Error(`No modules found for package: ${packageName}`);
             }
             return loader;
         } catch (error) {
-            throw new Error("Failed to resolve loader for module : " + error);
+            throw error;
         }
     }
 
-    getModuleByType(moduleType:  string){
+    getModuleByType(moduleType: string) {
         try {
-            const [packageName  , type] = moduleType.split('.');
-            const loader  = this.resolveLoaderForModule(packageName);
-            const {modules} = loader;
-            const loadedInstance  = modules.find(module=>module.className === type);
-            if (!loadedInstance) {
-                throw new Error(`loadedInstance not found for type: ${moduleType}`);
+            const [packageName, type] = moduleType.split('.');
+            if (!packageName || !type) {
+                throw new Error(`Invalid module type format: ${moduleType}. Expected format: type`);
             }
-            return loadedInstance.module;
+
+            const loader = this.resolveLoaderForModule(packageName);
+            const loadedModule = loader.modules.find(module =>
+                module.className === type
+            );
+
+            if (!loadedModule) {
+                throw new Error(`Module not found for type: ${moduleType}`);
+            }
+            return loadedModule.module;
         } catch (error) {
             throw error;
         }
+    }
+
+    getAllModules(): Record<string, IModule> {
+        const result: Record<string, IModule> = {};
+
+        Object.entries(this.loaders).forEach(([packageName, loader]) => {
+            const directoryLoader = loader as DirectoryLoader;
+            directoryLoader.modules.forEach(({ className, module }) => {
+                result[`${packageName}.${className.toLowerCase()}`] = module;
+            });
+        });
+
+        return result;
     }
 }

@@ -1,7 +1,7 @@
 import { Connection, Model } from "mongoose";
 import { IocGatewayType } from "./constants";
-import { BaseLoader } from "./loaders/base.loder";
-import { DirectioryLoader } from "./loaders/directory.loder";
+import { BaseLoader } from "./loaders/base.loader";
+import { DirectoryLoader } from "./loaders/directory.loader";
 
 
 export interface IModuleLoader {
@@ -25,7 +25,7 @@ export interface  ISchemas {
 }
 
 export interface ILoader{
-    [key:string] : DirectioryLoader
+    [key:string] : DirectoryLoader
 }
 
 export interface IDtoParams{}        ///Only to be used with Class-validator based paramaters 
