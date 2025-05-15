@@ -24,8 +24,15 @@ export interface  ISchemas {
     [key: string]: IDataObject;
 }
 
-export interface ILoader{
-    [key:string] : DirectoryLoader
+export interface ILoader {
+    [packageName: string]: {
+        loadAll(): Promise<void>;
+        flushAll(): void;
+        modules: Array<{ className: string; module: IModule }>;
+        known: Array<{ className: string; classPath: string; type: string }>;
+        packageName: string;
+        disconnect?(): Promise<void>; // Optional method for Redis loader
+    };
 }
 
 export interface IDtoParams{}        ///Only to be used with Class-validator based paramaters 

@@ -1,24 +1,41 @@
 import { ILoader, IModule } from "../Interface";
 import { BaseLoader } from "./base.loader";
 import { DirectoryLoader } from "./directory.loader";
+import { RedisLoader } from "./redis.loader";
 
 export type Class<T = object, A extends unknown[] = unknown[]> = new (...args: A) => T;
 
-export class ModuleLoader {
-    private readonly loaders: Record<string, BaseLoader> = {};
-    
+export interface redisoptionsType {
+    host?: string,
+    port?: number,
+    password?: string,
+    db?: number,
+    prefix?: string
+}
 
-    init() {
+export class ModuleLoader {
+    private readonly loaders: ILoader = {};
+
+    init(useRedis: boolean = false, redisOptions?: redisoptionsType) {
+
         try {
-            this.loadModules(DirectoryLoader);
+            if (useRedis) {
+                this.loadModules(RedisLoader, redisOptions);
+            } else {
+                this.loadModules(DirectoryLoader);
+            }
         } catch (error) {
             throw new Error(`Failed to initialize ModuleLoader: ${error instanceof Error ? error.message : String(error)}`);
         }
+
     }
 
-    private loadModules<T extends DirectoryLoader>(Constructor: Class<T, ConstructorParameters<typeof DirectoryLoader>>) {
+    private loadModules<T extends BaseLoader & { packageName: string }>(
+        Constructor: Class<T, any[]>,
+        options?: any
+    ) {
         try {
-            const loader = new Constructor();
+            const loader = options ? new Constructor(options) : new Constructor();
             this.loaders[loader.packageName] = loader;
             return loader;
         } catch (error) {
@@ -51,7 +68,7 @@ export class ModuleLoader {
 
             const loader = this.resolveLoaderForModule(packageName);
             const loadedModule = loader.modules.find(module =>
-                module.className === type
+                module.className.toLowerCase() === type
             );
 
             if (!loadedModule) {
@@ -67,12 +84,20 @@ export class ModuleLoader {
         const result: Record<string, IModule> = {};
 
         Object.entries(this.loaders).forEach(([packageName, loader]) => {
-            const directoryLoader = loader as DirectoryLoader;
-            directoryLoader.modules.forEach(({ className, module }) => {
+            loader.modules.forEach(({ className, module }) => {
                 result[`${packageName}.${className.toLowerCase()}`] = module;
             });
         });
 
         return result;
+    }
+
+    async shutdown() {
+        for (const packageName in this.loaders) {
+            const loader = this.loaders[packageName];
+            if (loader instanceof RedisLoader) {
+                await loader.disconnect();
+            }
+        }
     }
 }
